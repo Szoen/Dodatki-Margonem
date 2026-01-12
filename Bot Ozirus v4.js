@@ -83,7 +83,7 @@
     gui.id = 'bocik-panel-ozirus';
     gui.innerHTML = `
         <div class="bocik-header" id="bocikHeaderOzirus">
-            <span>Bocik E2 - Ozirus</span>
+            <span>Klątwa faraona</span>
             <span id="pinIconOzirus">🔓</span>
         </div>
         <div class="bocik-content">
