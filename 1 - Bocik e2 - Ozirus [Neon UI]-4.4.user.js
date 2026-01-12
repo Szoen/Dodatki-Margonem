@@ -153,7 +153,7 @@
     gui.className = 'bocik-panel';
     gui.innerHTML = `
         <div class="bocik-header" id="bocikHeader">
-            <span>Bocik E2 - Ozirus</span>
+            <span>Bocik E2213 - Ozirus</span>
             <span id="pinIcon">🔓</span>
         </div>
         <div class="bocik-content">
