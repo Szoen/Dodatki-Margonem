@@ -76,7 +76,7 @@
     panel.className = 'bocik-panel';
     panel.innerHTML = `
         <div class="bocik-header" id="dragHandlePuzzle">
-            <span>🤖 Zagadka v5.7</span>
+            <span>🤖 RoboPedał</span>
             <span id="pinIconPuzzle">🔓</span>
         </div>
         <div class="bocik-content">
