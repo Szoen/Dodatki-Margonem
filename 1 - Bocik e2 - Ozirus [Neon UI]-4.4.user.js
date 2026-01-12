@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         1 - Bocik e2 - Ozirus [Neon UI]
+// @name         Bot Ozirus
 // @namespace    http://tampermonkey.net/
 // @version      4.5
 // @author       Szpinak & Bocik
@@ -368,7 +368,7 @@
 
         // Wymuś pokazanie przy starcie (opcjonalnie, jeśli chcesz by był widoczny od razu po włączeniu w hubie)
         // Ale zgodnie z Twoim życzeniem "Hub" ma tym zarządzać, więc domyślnie czekamy.
-        gui.style.display = 'flex'; // Zmień na 'none' jeśli ma być ukryty po odświeżeniu
+        gui.style.display = 'none'; // Zmień na 'none' jeśli ma być ukryty po odświeżeniu
 
         botLoop();
     });
