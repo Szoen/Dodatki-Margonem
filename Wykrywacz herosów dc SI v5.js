@@ -81,7 +81,7 @@
     panel.id = 'bocik-panel-mob';
     panel.innerHTML = `
         <div class="bocik-header" id="dragHandleMob">
-            <span>👾 Mob Notifier</span>
+            <span>👾 Mam cię chuju</span>
             <span id="pinIconMob">🔓</span>
         </div>
         <div class="bocik-content">
