@@ -1,2 +1,2 @@
 # Dodatki-Margonem
-Dodatki w panelu Szpinaka Margonem 
+Dodatki panelu Szpinaka Margonem 
