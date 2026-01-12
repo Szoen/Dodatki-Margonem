@@ -359,9 +359,9 @@
         window.addEventListener('bocik:toggle-gui', function(e) {
             if (e.detail.id === ADDON_ID) {
                 if (gui.style.display === 'none' || gui.style.display === '') {
-                    gui.style.display = 'flex';
-                } else {
                     gui.style.display = 'none';
+                } else {
+                    gui.style.display = 'flex';
                 }
             }
         });
