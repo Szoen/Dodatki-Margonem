@@ -76,7 +76,7 @@
 
     panel.innerHTML = `
         <div class="bocik-header" id="dragHandleUni">
-            <span>😈 Heros Detector</span>
+            <span>😈 Mam cię chuju</span>
             <span id="pinIconUni">🔓</span>
         </div>
         <div class="bocik-content">
@@ -180,7 +180,7 @@
     function sendDiscordAlert(mobName, mapName, x, y, lvl, typeLabel) {
         let contentMessage = "";
         if (CONFIG.discordRoleId && CONFIG.discordRoleId !== "") {
-            contentMessage = `<@&${CONFIG.discordRoleId}> ${typeLabel} na horyzoncie!`;
+            contentMessage = `<@&${CONFIG.discordRoleId}>`;
         }
         const payload = {
             content: contentMessage,
@@ -192,7 +192,7 @@
                     { name: "Poziom", value: `${lvl}`, inline: true },
                     { name: "Lokalizacja", value: `${mapName} (${x}, ${y})`, inline: false }
                 ],
-                footer: { text: "Bocik Detector v6.4" },
+                footer: { text: "Szpinak notifier" },
                 timestamp: new Date().toISOString()
             }]
         };
