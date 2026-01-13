@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         AntyDuch v3.4 [Anti-AFK + Hub]
+// @name         AntyDuch v3.6 [Universal + Memory + Hub]
 // @namespace    http://tampermonkey.net/
-// @version      3.4
-// @description  Wykrywa zniknięcie NPC lub działa jako Anti-AFK (gdy brak nazwy). Hub Integration + Memory.
+// @version      3.6
+// @description  Anti-AFK / Wykrywanie zniknięcia moba. Zapisuje ustawienia. Hub Integration.
 // @author       Bocik & Szpinak
 // @match        http*://*.margonem.pl/*
 // @grant        none
@@ -12,15 +12,15 @@
     'use strict';
 
     // --- INTEGRACJA Z HUBEM ---
-    const ADDON_ID = 'antyduch';
+    const ADDON_ID = 'antyduch'; // To ID musi być w Hubie
     const STORAGE_KEY = 'bocik_antyduch_settings';
     const STORAGE_VISIBLE_KEY = 'bocik_antyduch_gui_visible';
     const STORAGE_POS_KEY = 'bocik_antyduch_gui_pos';
     const STORAGE_RUNNING_KEY = 'bocik_antyduch_running';
 
-    // --- USTAWIENIA DOMYŚLNE ---
+    // --- USTAWIENIA DOMYŚLNE (Z PAMIĘCIĄ) ---
     let settings = {
-        mobName: localStorage.getItem(STORAGE_KEY + '_mob') || "", // Domyślnie puste = Anti-AFK
+        mobName: localStorage.getItem(STORAGE_KEY + '_mob') || "",
         minTime: parseInt(localStorage.getItem(STORAGE_KEY + '_min')) || 12,
         maxTime: parseInt(localStorage.getItem(STORAGE_KEY + '_max')) || 15,
         stepDurationMin: 100,
@@ -39,13 +39,34 @@
     let timerInterval = null;
     let isEnabled = localStorage.getItem(STORAGE_RUNNING_KEY) === 'true';
     let mobWasSeen = false;
-    let isMoving = false; // Blokada, żeby timer nie startował podczas ruchu
+    let isMoving = false;
 
-    // --- STYLIZACJA CSS ---
+    // --- HELPERY DLA INTERFEJSÓW (NI & SI) ---
+    function isMobPresent(name) {
+        if (!name) return false;
+        // 1. NI
+        if (typeof Engine !== 'undefined' && Engine.npcs && Engine.npcs.check) {
+            let npcs = Engine.npcs.check();
+            for (let id in npcs) {
+                if (npcs[id] && npcs[id].d && npcs[id].d.nick === name.trim()) return true;
+            }
+        }
+        // 2. SI
+        else if (typeof g !== 'undefined' && g.npc) {
+            for (let id in g.npc) {
+                if (g.npc[id].nick === name.trim()) return true;
+            }
+        }
+        return false;
+    }
+
+    // --- STYLIZACJA CSS (FIXED LAYOUT) ---
     const style = document.createElement('style');
     style.innerHTML = `
         .bocik-panel {
-            position: fixed; top: 200px; left: 50px; width: 220px;
+            position: fixed;
+            /* Brak sztywnego top/left tutaj - ustawiane przez JS */
+            width: 220px;
             background-color: #1a1a1a; border: 2px solid #b026ff; border-radius: 12px;
             box-shadow: 0 0 15px rgba(176, 38, 255, 0.2); font-family: 'Verdana', sans-serif;
             z-index: 99999; color: #fff; overflow: hidden; display: none;
@@ -75,6 +96,10 @@
     const panel = document.createElement('div');
     panel.className = 'bocik-panel';
     panel.id = 'bocik-panel-antyduch';
+    // Domyślna pozycja startowa (JS)
+    panel.style.top = "200px";
+    panel.style.left = "50px";
+
     panel.innerHTML = `
         <div class="bocik-header" id="dragHandleAnty">
             <span>👻 Lecimy lecimy nie śpimy</span>
@@ -120,11 +145,19 @@
         statusLabel.innerText = "Wznawianie...";
     }
 
-    // --- DRAGGABLE ---
+    // --- DRAGGABLE (SAFE & MEMORY) ---
     (function makeDraggable(element, handle) {
         let isPinned = false, offsetX = 0, offsetY = 0, mouseX = 0, mouseY = 0;
         const savedPos = localStorage.getItem(STORAGE_POS_KEY);
-        if (savedPos) { try { const pos = JSON.parse(savedPos); element.style.top = pos.top; element.style.left = pos.left; } catch(e) {} }
+        if (savedPos) {
+            try {
+                const pos = JSON.parse(savedPos);
+                element.style.top = pos.top;
+                element.style.left = pos.left;
+                // Reset bottom/right
+                element.style.bottom = 'auto'; element.style.right = 'auto';
+            } catch(e) {}
+        }
 
         handle.onmousedown = dragMouseDown;
         handle.ondblclick = function() {
@@ -140,6 +173,7 @@
         function elementDrag(e) {
             e.preventDefault(); offsetX = mouseX - e.clientX; offsetY = mouseY - e.clientY; mouseX = e.clientX; mouseY = e.clientY;
             element.style.top = (element.offsetTop - offsetY) + "px"; element.style.left = (element.offsetLeft - offsetX) + "px";
+            element.style.bottom = 'auto'; element.style.right = 'auto';
         }
         function closeDragElement() {
             document.removeEventListener('mouseup', closeDragElement); document.removeEventListener('mousemove', elementDrag);
@@ -147,11 +181,12 @@
         }
     })(panel, dragHandle);
 
-    // --- LOGIKA ---
+    // --- LOGIKA BOTA ---
 
+    // Zapisywanie ustawień w czasie rzeczywistym
     inpMobName.oninput = () => { settings.mobName = inpMobName.value; saveSettings(); };
-    inpMin.onchange = () => { settings.minTime = parseInt(inpMin.value); saveSettings(); };
-    inpMax.onchange = () => { settings.maxTime = parseInt(inpMax.value); saveSettings(); };
+    inpMin.oninput = () => { settings.minTime = parseInt(inpMin.value) || 12; saveSettings(); };
+    inpMax.oninput = () => { settings.maxTime = parseInt(inpMax.value) || 15; saveSettings(); };
 
     toggleBtn.onclick = () => {
         isEnabled = !isEnabled;
@@ -171,12 +206,13 @@
     function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
     function formatTime(seconds) { const m = Math.floor(seconds / 60); const s = seconds % 60; return `${m}:${s < 10 ? '0' : ''}${s}`; }
 
+    // RUCH WASD
     function pressKey(keyChar, duration, callback) {
         const keyCodeMap = { 'w': 87, 'a': 65, 's': 83, 'd': 68 };
         const keyCode = keyCodeMap[keyChar];
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: keyChar, code: `Key${keyChar.toUpperCase()}`, keyCode: keyCode, which: keyCode, bubbles: true }));
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: keyChar, code: `Key${keyChar.toUpperCase()}`, keyCode: keyCode, which: keyCode, bubbles: true }));
         setTimeout(() => {
-            document.dispatchEvent(new KeyboardEvent('keyup', { key: keyChar, code: `Key${keyChar.toUpperCase()}`, keyCode: keyCode, which: keyCode, bubbles: true }));
+            document.body.dispatchEvent(new KeyboardEvent('keyup', { key: keyChar, code: `Key${keyChar.toUpperCase()}`, keyCode: keyCode, which: keyCode, bubbles: true }));
             if (callback) callback();
         }, duration);
     }
@@ -190,19 +226,18 @@
         const returnKey = oppositeMap[startKey];
 
         statusLabel.innerHTML = `Ruch: <b style="color:#0f0">${startKey.toUpperCase()}</b>`;
-
+        
         pressKey(startKey, randomInt(settings.stepDurationMin, settings.stepDurationMax), () => {
             setTimeout(() => {
                 if (!isEnabled) { isMoving = false; return; }
                 statusLabel.innerHTML = `Powrót: <b style="color:#0f0">${returnKey.toUpperCase()}</b>`;
                 pressKey(returnKey, randomInt(settings.stepDurationMin, settings.stepDurationMax), () => {
                     isMoving = false;
-                    // PO RUCHU:
-                    // Jeśli Anti-AFK (puste pole) -> Wznów timer od razu
+                    // Jeśli Anti-AFK (pusta nazwa) -> Start od nowa
                     if (settings.mobName.trim() === "") {
                         startTimer();
                     } else {
-                        // Jeśli tryb Polowania -> Czekaj na moba
+                        // Jeśli Polowanie -> Czuwaj
                         statusLabel.innerText = "Czuwanie..."; statusLabel.style.color = "yellow";
                         mobWasSeen = false;
                         timerLabel.innerText = "--:--"; timerLabel.style.color = "#fff";
@@ -215,7 +250,7 @@
     function startTimer() {
         if (!isEnabled || isMoving) return;
         if (timerInterval) clearInterval(timerInterval);
-
+        
         const minSec = settings.minTime * 60;
         const maxSec = settings.maxTime * 60;
         let remainingSeconds = randomInt(minSec, maxSec);
@@ -240,23 +275,15 @@
 
     function mainLoop() {
         if (!isEnabled) return;
-
-        // 1. Tryb Anti-AFK (Puste pole)
+        
+        // 1. Tryb Anti-AFK
         if (settings.mobName.trim() === "") {
-            // Jeśli timer nie chodzi i bot się nie rusza -> startuj timer
-            if (!timerInterval && !isMoving) {
-                startTimer();
-            }
+            if (!timerInterval && !isMoving) startTimer();
             return;
         }
 
-        // 2. Tryb Polowania (Jest nazwa moba)
-        if (typeof g === 'undefined' || !g.npc) return;
-
-        let isPresent = false;
-        for (let id in g.npc) {
-            if (g.npc[id].nick === settings.mobName.trim()) { isPresent = true; break; }
-        }
+        // 2. Tryb Polowania
+        const isPresent = isMobPresent(settings.mobName);
 
         if (isPresent) {
             if (!mobWasSeen) {
@@ -267,7 +294,6 @@
             }
             mobWasSeen = true;
         } else {
-            // Jeśli mob zniknął, a wcześniej był -> Start Timer
             if (mobWasSeen) {
                 startTimer();
                 mobWasSeen = false;
@@ -277,7 +303,7 @@
 
     setInterval(mainLoop, 500);
 
-    // --- INTEGRACJA ---
+    // --- INTEGRACJA Z HUBEM ---
     window.addEventListener('load', function() {
         const savedState = localStorage.getItem(STORAGE_VISIBLE_KEY);
         const shouldBeVisible = savedState === null ? true : (savedState === 'true');
