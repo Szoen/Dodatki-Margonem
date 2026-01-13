@@ -164,7 +164,7 @@
             whitelist: ["Centaur zwiadowca","Centaur łowca","Centaur łucznik","Centaur obrońca","Centaur tropiciel","Centaur wojownik"],
             maps: [
                 { mapName: "Błędny Szlak", gateId: "gw6400", waypoints: [] },
-                { mapName: "Zawiły bór", gateId: "gw9728", waypoints: [] },
+                { mapName: "Zawiły Bór", gateId: "gw9728", waypoints: [] },
                 { mapName: "Selva Oscura", gateId: "gw59", waypoints: [] },
                 { mapName: "Dolina Centaurów", gateId: "gw9567", waypoints: [] },
                 { mapName: "Iglaste Ścieżki", gateId: "gw7775", waypoints: [] },
