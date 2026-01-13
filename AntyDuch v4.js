@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         AntyDuch v3.6 [Universal + Memory + Hub]
+// @name         AntyDuch v3.7 [Save Fix + Hub]
 // @namespace    http://tampermonkey.net/
-// @version      3.6
-// @description  Anti-AFK / Wykrywanie zniknięcia moba. Zapisuje ustawienia. Hub Integration.
+// @version      3.7
+// @description  Wykrywa zniknięcie NPC lub działa jako Anti-AFK. Poprawnie zapamiętuje wpisane wartości po odświeżeniu.
 // @author       Bocik & Szpinak
 // @match        http*://*.margonem.pl/*
 // @grant        none
@@ -12,27 +12,37 @@
     'use strict';
 
     // --- INTEGRACJA Z HUBEM ---
-    const ADDON_ID = 'antyduch'; // To ID musi być w Hubie
-    const STORAGE_KEY = 'bocik_antyduch_settings';
-    const STORAGE_VISIBLE_KEY = 'bocik_antyduch_gui_visible';
-    const STORAGE_POS_KEY = 'bocik_antyduch_gui_pos';
-    const STORAGE_RUNNING_KEY = 'bocik_antyduch_running';
+    const ADDON_ID = 'antyduch';
+    // Nowe klucze, żeby nie pobierało starych/błędnych danych
+    const STORAGE_KEY_PREFIX = 'bocik_antyduch_v37_';
+    const STORAGE_VISIBLE_KEY = STORAGE_KEY_PREFIX + 'gui_visible';
+    const STORAGE_POS_KEY = STORAGE_KEY_PREFIX + 'gui_pos';
+    const STORAGE_RUNNING_KEY = STORAGE_KEY_PREFIX + 'running';
 
-    // --- USTAWIENIA DOMYŚLNE (Z PAMIĘCIĄ) ---
+    // --- ŁADOWANIE USTAWIEŃ ---
+    function loadSetting(key, defaultValue) {
+        const val = localStorage.getItem(STORAGE_KEY_PREFIX + key);
+        return (val !== null && val !== "") ? val : defaultValue;
+    }
+
+    // Wczytujemy jako stringi lub liczby, zależnie co było wpisane
     let settings = {
-        mobName: localStorage.getItem(STORAGE_KEY + '_mob') || "",
-        minTime: parseInt(localStorage.getItem(STORAGE_KEY + '_min')) || 12,
-        maxTime: parseInt(localStorage.getItem(STORAGE_KEY + '_max')) || 15,
+        mobName: loadSetting('mob', ""),
+        minTime: parseInt(loadSetting('min', 12)),
+        maxTime: parseInt(loadSetting('max', 15)),
         stepDurationMin: 100,
         stepDurationMax: 300,
         pauseMin: 1000,
         pauseMax: 2000
     };
 
-    function saveSettings() {
-        localStorage.setItem(STORAGE_KEY + '_mob', settings.mobName);
-        localStorage.setItem(STORAGE_KEY + '_min', settings.minTime);
-        localStorage.setItem(STORAGE_KEY + '_max', settings.maxTime);
+    // Zabezpieczenie: jeśli wczytano NaN (błąd), ustaw domyślne
+    if (isNaN(settings.minTime)) settings.minTime = 12;
+    if (isNaN(settings.maxTime)) settings.maxTime = 15;
+
+    // Funkcja zapisu pojedynczej wartości
+    function saveVal(key, value) {
+        localStorage.setItem(STORAGE_KEY_PREFIX + key, value);
     }
 
     // --- ZMIENNE STANU ---
@@ -41,17 +51,17 @@
     let mobWasSeen = false;
     let isMoving = false;
 
-    // --- HELPERY DLA INTERFEJSÓW (NI & SI) ---
+    // --- HELPERY DLA INTERFEJSÓW ---
     function isMobPresent(name) {
         if (!name) return false;
-        // 1. NI
+        // NI
         if (typeof Engine !== 'undefined' && Engine.npcs && Engine.npcs.check) {
             let npcs = Engine.npcs.check();
             for (let id in npcs) {
                 if (npcs[id] && npcs[id].d && npcs[id].d.nick === name.trim()) return true;
             }
         }
-        // 2. SI
+        // SI
         else if (typeof g !== 'undefined' && g.npc) {
             for (let id in g.npc) {
                 if (g.npc[id].nick === name.trim()) return true;
@@ -60,12 +70,11 @@
         return false;
     }
 
-    // --- STYLIZACJA CSS (FIXED LAYOUT) ---
+    // --- STYLIZACJA CSS ---
     const style = document.createElement('style');
     style.innerHTML = `
         .bocik-panel {
             position: fixed;
-            /* Brak sztywnego top/left tutaj - ustawiane przez JS */
             width: 220px;
             background-color: #1a1a1a; border: 2px solid #b026ff; border-radius: 12px;
             box-shadow: 0 0 15px rgba(176, 38, 255, 0.2); font-family: 'Verdana', sans-serif;
@@ -96,7 +105,7 @@
     const panel = document.createElement('div');
     panel.className = 'bocik-panel';
     panel.id = 'bocik-panel-antyduch';
-    // Domyślna pozycja startowa (JS)
+    // Domyślna pozycja
     panel.style.top = "200px";
     panel.style.left = "50px";
 
@@ -145,19 +154,60 @@
         statusLabel.innerText = "Wznawianie...";
     }
 
-    // --- DRAGGABLE (SAFE & MEMORY) ---
+    // --- OBSŁUGA DANYCH WEJŚCIOWYCH (POPRAWIONA) ---
+    // Zapisujemy od razu przy wpisywaniu
+    inpMobName.oninput = () => {
+        settings.mobName = inpMobName.value;
+        saveVal('mob', settings.mobName);
+    };
+
+    inpMin.oninput = () => {
+        let val = parseInt(inpMin.value);
+        if (!isNaN(val)) {
+            settings.minTime = val;
+            saveVal('min', val);
+        } else {
+            // Jeśli pole jest puste, nie nadpisujemy zmiennej settings błędną wartością,
+            // ale pozwalamy użytkownikowi pisać dalej.
+            // Zapisujemy pusty ciąg, żeby po odświeżeniu też było pusto (lub domyślnie).
+            saveVal('min', inpMin.value);
+        }
+    };
+
+    inpMax.oninput = () => {
+        let val = parseInt(inpMax.value);
+        if (!isNaN(val)) {
+            settings.maxTime = val;
+            saveVal('max', val);
+        } else {
+            saveVal('max', inpMax.value);
+        }
+    };
+
+    toggleBtn.onclick = () => {
+        isEnabled = !isEnabled;
+        localStorage.setItem(STORAGE_RUNNING_KEY, isEnabled);
+        if (isEnabled) {
+            // Walidacja przed startem - jeśli wpisano głupoty, ustaw bezpieczne
+            if (isNaN(settings.minTime) || settings.minTime < 0) settings.minTime = 12;
+            if (isNaN(settings.maxTime) || settings.maxTime < 0) settings.maxTime = 15;
+
+            toggleBtn.innerText = "STOP"; toggleBtn.className = "bocik-btn btn-on";
+            statusLabel.innerText = "Start..."; statusLabel.style.color = "#ccc";
+            mobWasSeen = false; isMoving = false;
+        } else {
+            toggleBtn.innerText = "START"; toggleBtn.className = "bocik-btn btn-off";
+            statusLabel.innerText = "Zatrzymany"; statusLabel.style.color = "#888";
+            timerLabel.innerText = "--:--"; timerLabel.style.color = "#fff";
+            if (timerInterval) clearInterval(timerInterval); timerInterval = null;
+        }
+    };
+
+    // --- DRAGGABLE ---
     (function makeDraggable(element, handle) {
         let isPinned = false, offsetX = 0, offsetY = 0, mouseX = 0, mouseY = 0;
         const savedPos = localStorage.getItem(STORAGE_POS_KEY);
-        if (savedPos) {
-            try {
-                const pos = JSON.parse(savedPos);
-                element.style.top = pos.top;
-                element.style.left = pos.left;
-                // Reset bottom/right
-                element.style.bottom = 'auto'; element.style.right = 'auto';
-            } catch(e) {}
-        }
+        if (savedPos) { try { const pos = JSON.parse(savedPos); element.style.top = pos.top; element.style.left = pos.left; element.style.bottom = 'auto'; element.style.right = 'auto'; } catch(e) {} }
 
         handle.onmousedown = dragMouseDown;
         handle.ondblclick = function() {
@@ -182,31 +232,9 @@
     })(panel, dragHandle);
 
     // --- LOGIKA BOTA ---
-
-    // Zapisywanie ustawień w czasie rzeczywistym
-    inpMobName.oninput = () => { settings.mobName = inpMobName.value; saveSettings(); };
-    inpMin.oninput = () => { settings.minTime = parseInt(inpMin.value) || 12; saveSettings(); };
-    inpMax.oninput = () => { settings.maxTime = parseInt(inpMax.value) || 15; saveSettings(); };
-
-    toggleBtn.onclick = () => {
-        isEnabled = !isEnabled;
-        localStorage.setItem(STORAGE_RUNNING_KEY, isEnabled);
-        if (isEnabled) {
-            toggleBtn.innerText = "STOP"; toggleBtn.className = "bocik-btn btn-on";
-            statusLabel.innerText = "Start..."; statusLabel.style.color = "#ccc";
-            mobWasSeen = false; isMoving = false;
-        } else {
-            toggleBtn.innerText = "START"; toggleBtn.className = "bocik-btn btn-off";
-            statusLabel.innerText = "Zatrzymany"; statusLabel.style.color = "#888";
-            timerLabel.innerText = "--:--"; timerLabel.style.color = "#fff";
-            if (timerInterval) clearInterval(timerInterval); timerInterval = null;
-        }
-    };
-
     function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
     function formatTime(seconds) { const m = Math.floor(seconds / 60); const s = seconds % 60; return `${m}:${s < 10 ? '0' : ''}${s}`; }
 
-    // RUCH WASD
     function pressKey(keyChar, duration, callback) {
         const keyCodeMap = { 'w': 87, 'a': 65, 's': 83, 'd': 68 };
         const keyCode = keyCodeMap[keyChar];
@@ -226,22 +254,15 @@
         const returnKey = oppositeMap[startKey];
 
         statusLabel.innerHTML = `Ruch: <b style="color:#0f0">${startKey.toUpperCase()}</b>`;
-        
+
         pressKey(startKey, randomInt(settings.stepDurationMin, settings.stepDurationMax), () => {
             setTimeout(() => {
                 if (!isEnabled) { isMoving = false; return; }
                 statusLabel.innerHTML = `Powrót: <b style="color:#0f0">${returnKey.toUpperCase()}</b>`;
                 pressKey(returnKey, randomInt(settings.stepDurationMin, settings.stepDurationMax), () => {
                     isMoving = false;
-                    // Jeśli Anti-AFK (pusta nazwa) -> Start od nowa
-                    if (settings.mobName.trim() === "") {
-                        startTimer();
-                    } else {
-                        // Jeśli Polowanie -> Czuwaj
-                        statusLabel.innerText = "Czuwanie..."; statusLabel.style.color = "yellow";
-                        mobWasSeen = false;
-                        timerLabel.innerText = "--:--"; timerLabel.style.color = "#fff";
-                    }
+                    if (settings.mobName.trim() === "") { startTimer(); }
+                    else { statusLabel.innerText = "Czuwanie..."; statusLabel.style.color = "yellow"; mobWasSeen = false; timerLabel.innerText = "--:--"; timerLabel.style.color = "#fff"; }
                 });
             }, randomInt(settings.pauseMin, settings.pauseMax));
         });
@@ -250,23 +271,20 @@
     function startTimer() {
         if (!isEnabled || isMoving) return;
         if (timerInterval) clearInterval(timerInterval);
-        
-        const minSec = settings.minTime * 60;
-        const maxSec = settings.maxTime * 60;
+
+        const minSec = (settings.minTime || 12) * 60;
+        const maxSec = (settings.maxTime || 15) * 60;
         let remainingSeconds = randomInt(minSec, maxSec);
 
         const modeText = (settings.mobName.trim() === "") ? "Anti-AFK" : "Respawn";
-        statusLabel.innerText = `Odliczam (${modeText})`;
-        statusLabel.style.color = "#00ccff";
-        timerLabel.style.color = "#00ccff";
+        statusLabel.innerText = `Odliczam (${modeText})`; statusLabel.style.color = "#00ccff"; timerLabel.style.color = "#00ccff";
 
         timerInterval = setInterval(() => {
             if (!isEnabled) { clearInterval(timerInterval); timerInterval = null; return; }
             timerLabel.innerText = formatTime(remainingSeconds);
             if (remainingSeconds <= 0) {
                 clearInterval(timerInterval); timerInterval = null;
-                timerLabel.innerText = "RUCH!";
-                timerLabel.style.color = "#ff4444";
+                timerLabel.innerText = "RUCH!"; timerLabel.style.color = "#ff4444";
                 triggerReturnMovement();
             }
             remainingSeconds--;
@@ -275,16 +293,11 @@
 
     function mainLoop() {
         if (!isEnabled) return;
-        
-        // 1. Tryb Anti-AFK
         if (settings.mobName.trim() === "") {
             if (!timerInterval && !isMoving) startTimer();
             return;
         }
-
-        // 2. Tryb Polowania
         const isPresent = isMobPresent(settings.mobName);
-
         if (isPresent) {
             if (!mobWasSeen) {
                 console.log(`[AntyDuch] Widzę cel: ${settings.mobName}`);
@@ -294,21 +307,16 @@
             }
             mobWasSeen = true;
         } else {
-            if (mobWasSeen) {
-                startTimer();
-                mobWasSeen = false;
-            }
+            if (mobWasSeen) { startTimer(); mobWasSeen = false; }
         }
     }
 
     setInterval(mainLoop, 500);
 
-    // --- INTEGRACJA Z HUBEM ---
     window.addEventListener('load', function() {
         const savedState = localStorage.getItem(STORAGE_VISIBLE_KEY);
         const shouldBeVisible = savedState === null ? true : (savedState === 'true');
         panel.style.display = shouldBeVisible ? 'flex' : 'none';
-
         window.addEventListener('bocik:toggle-gui', function(e) {
             if (e.detail.id === ADDON_ID) {
                 const isHidden = (panel.style.display === 'none' || panel.style.display === '');
