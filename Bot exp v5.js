@@ -171,6 +171,15 @@
                 { mapName: "Ostępy Szalbierskich Lasów", gateId: "gw16192", waypoints: [] },
             ]
         },
+        "Szkielety": {
+            whitelist: [],
+            maps: [
+                { mapName: "Sucha Dolina", gateId: "gw12607", waypoints: [] },
+                { mapName: "Płaskowyż Arpan", gateId: "gw14943", waypoints: [] },
+                { mapName: "Pustkowia Pogrzebanych", gateId: "gw23296", waypoints: [] },
+                { mapName: "Płaskowyż Arpan", gateId: "gw12800", waypoints: [] },
+            ]
+        },
         "Mumie": {
             whitelist: ["Piaskowe chuchro","Mumia wysokiego ka","Zabandażowany zwi","Zasuszony legionista","Skarabeusz Zihanitu","Cheperu","Scarabeaus Gir-tab","Scarabeaus Nangar","Chodzące truchło"],
             maps: [
