@@ -172,7 +172,8 @@
             ]
         },
         "Szkielety": {
-            whitelist: [],
+            whitelist: ["Groźna lwica","Groźny lew","Piaskowy tygrys","Szkielet rycerza","Szkarłatny rycerz",
+                       "Szkielet łucznika","Sępi Rozpruwacz","Pustynny szakal"],
             maps: [
                 { mapName: "Sucha Dolina", gateId: "gw12607", waypoints: [] },
                 { mapName: "Płaskowyż Arpan", gateId: "gw14943", waypoints: [] },
