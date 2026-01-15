@@ -1,0 +1,102 @@
+// ==UserScript==
+// @name         Margonem - Logger Przejść v2.3 [Hub Backend]
+// @namespace    http://tampermonkey.net/
+// @version      2.3
+// @description  Generuje obiekt przejścia w konsoli (bez GUI). Działa w tle.
+// @author       Bocik
+// @match        http://*.margonem.pl/*
+// @match        https://*.margonem.pl/*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // --- KONFIGURACJA ---
+    const KEY_ID = 'bocik_logger_last_gw';
+    const KEY_MAP = 'bocik_logger_last_map';
+    const DELAY_START = 4000; // Czas ignorowania po wejściu (anty-spawn)
+    const DELAY_COOLDOWN = 2000; // Odstęp między logami
+
+    let isStartupBlocked = true;
+    let isCooldown = false;
+
+    // --- HELPERY ---
+    function getMapName() {
+        if (typeof Engine !== 'undefined' && Engine.map && Engine.map.d) return Engine.map.d.name; // NI
+        if (typeof map !== 'undefined' && map.name) return map.name; // SI
+        return null;
+    }
+
+    function getHeroPos() {
+        if (typeof hero !== 'undefined') return { x: hero.x, y: hero.y }; // SI
+        if (typeof Engine !== 'undefined' && Engine.hero && Engine.hero.d) return { x: Engine.hero.d.x, y: Engine.hero.d.y }; // NI
+        return null;
+    }
+
+    // --- 1. ODCZYT PO WEJŚCIU ---
+    const savedId = localStorage.getItem(KEY_ID);
+    const savedMap = localStorage.getItem(KEY_MAP);
+
+    // Jeśli mamy zapisane dane z poprzedniej mapy -> Wypisz w konsoli
+    if (savedId && savedMap) {
+        // Generujemy gotowy obiekt do wklejenia w skrypt Maratończyka/Bota Exp
+        const outputObj = `{ mapName: "${savedMap}", gateId: "${savedId}", waypoints: [] },`;
+
+        console.log('%c[Bocik Logger] 📋 Skopiuj poniższą linię:', 'color: #b026ff; font-weight: bold;');
+        console.log(outputObj);
+
+        // Czyścimy pamięć, żeby nie spamowało po odświeżeniu (F5)
+        localStorage.removeItem(KEY_ID);
+        localStorage.removeItem(KEY_MAP);
+    }
+
+    // --- 2. ZDEJMOWANIE BLOKADY ---
+    setTimeout(() => {
+        isStartupBlocked = false;
+        console.log('%c[Bocik Logger] 🟢 Gotowy do zapisu przejść.', 'color: gray; font-size: 10px;');
+    }, DELAY_START);
+
+    // --- 3. PĘTLA WYKRYWANIA ---
+    function detectGateway() {
+        if (isStartupBlocked || isCooldown) return;
+
+        const heroPos = getHeroPos();
+        const currentMap = getMapName();
+
+        if (!heroPos || !currentMap) return;
+
+        // Pobieramy elementy przejść (SI i NI zazwyczaj renderują je w DOM jako .gw)
+        const gateways = document.getElementsByClassName('gw');
+
+        for (let gw of gateways) {
+            // Parsowanie pozycji z CSS (left/top są w pikselach, dzielimy przez 32)
+            const gwX = parseInt(gw.style.left) / 32;
+            const gwY = parseInt(gw.style.top) / 32;
+
+            // Sprawdzamy czy stoimy na przejściu (tolerancja 0.5 kratki)
+            if (Math.abs(heroPos.x - gwX) < 0.5 && Math.abs(heroPos.y - gwY) < 0.5) {
+
+                const fullId = gw.id; // np. "gw12345"
+
+                // Zapisujemy tylko jeśli to "nowe" przejście (żeby nie zapisać wejścia, którym przyszliśmy)
+                // W tym przypadku localStorage jest już wyczyszczone na starcie, więc zapisujemy od razu.
+                
+                localStorage.setItem(KEY_ID, fullId);
+                localStorage.setItem(KEY_MAP, currentMap);
+
+                console.log(`%c[Bocik Logger] 💾 Złapano: ${fullId} na mapie "${currentMap}"`, 'color: orange;');
+
+                // Cooldown żeby nie spamować zapisu stojąc na kratce
+                isCooldown = true;
+                setTimeout(() => { isCooldown = false; }, DELAY_COOLDOWN);
+
+                break; // Znaleziono, przerywamy pętlę
+            }
+        }
+    }
+
+    // Skanowanie co 100ms (optymalnie)
+    setInterval(detectGateway, 100);
+
+})();
