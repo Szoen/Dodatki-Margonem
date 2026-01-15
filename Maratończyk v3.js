@@ -30,11 +30,15 @@
             { mapName: "Złowrogie Bagna", gateId: "gw13320", waypoints: [[51,21],[23,37]] },
             { mapName: "Zagrzybiałe Ścieżki p.1 - sala 1", gateId: "gw11017", waypoints: [[17,35],[33,18]] },
             { mapName: "Złowrogie Bagna", gateId: "gw21", waypoints: [[10,11]] },
-            { mapName: "Błędny Szlak", gateId: "gw6400", waypoints: [[37,45],[26,4]] },
+            { mapName: "Błędny Szlak", gateId: "gw6400", waypoints: [[37,45],[26,4],[8,44]] },
             { mapName: "Zawiły Bór", gateId: "gw9728", waypoints: [[85,9],[52,9],[19,47]] },
             { mapName: "Selva Oscura", gateId: "gw59", waypoints: [[25,20],[77,15]] },
             { mapName: "Dolina Centaurów", gateId: "gw9567", waypoints: [[9,51],[68,20],[83,49]] },
-            { mapName: "Iglaste Ścieżki", gateId: "", waypoints: [[20,13],[29,51],[66,49],[85,42],[80,11]] },
+            { mapName: "Iglaste Ścieżki", gateId: "gw7775", waypoints: [[20,13],[29,51],[66,49],[85,42],[80,11]] },
+            { mapName: "Ostępy Szalbierskich Lasów", gateId: "gw16192", waypoints: [] },
+            { mapName: "Błędny Szlak", gateId: "gw16150", waypoints: [] },
+            { mapName: "Złowrogie Bagna", gateId: "gw16186", waypoints: [] },
+            { mapName: "Gadzia Kotlina", gateId: "gw9055", waypoints: [] }
         ],
         "Kasim od Ozirusa": [
              { mapName: "Piramida Pustynnego Władcy p.3", gateId: "gw9490", waypoints: [] },
