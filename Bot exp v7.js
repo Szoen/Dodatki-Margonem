@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Bot Exp v36.3 [Layout Fix]
+// @name         Bot Exp v36.4 [Agro Update]
 // @namespace    http://tampermonkey.net/
-// @version      36.3
-// @description  Bot do expienia. Naprawiono konflikt stylów (rozciąganie innych okien).
+// @version      36.4
+// @description  Bot do expienia. Dodano opcję Agro (odświeżanie po 3s stania).
 // @author       Szpinak & Bocik
 // @match        http*://*.margonem.pl/
 // @match        http*://*.margonem.com/
@@ -22,6 +22,7 @@
     // --- PAMIĘĆ STANU BOTA ---
     const STORAGE_KEY_RUNNING = 'bocik_exp_isRunning';
     const STORAGE_KEY_LOOP = 'bocik_exp_isLooping';
+    const STORAGE_KEY_AGRO = 'bocik_exp_isAgro'; // Nowy klucz
     const STORAGE_KEY_SET = 'bocik_exp_currentSet';
     const STORAGE_KEY_MAP_IDX = 'bocik_exp_mapIndex';
 
@@ -173,7 +174,7 @@
         },
         "Szkielety": {
             whitelist: ["Groźna lwica","Groźny lew","Piaskowy tygrys","Szkielet rycerza","Szkarłatny rycerz",
-                       "Szkielet łucznika","Sępi Rozpruwacz","Pustynny szakal"],
+                        "Szkielet łucznika","Sępi Rozpruwacz","Pustynny szakal"],
             maps: [
                 { mapName: "Sucha Dolina", gateId: "gw12607", waypoints: [] },
                 { mapName: "Płaskowyż Arpan", gateId: "gw14943", waypoints: [] },
@@ -202,6 +203,7 @@
     // Wczytanie z pamięci
     let isRunning = localStorage.getItem(STORAGE_KEY_RUNNING) === 'true';
     let isLooping = localStorage.getItem(STORAGE_KEY_LOOP) === 'true';
+    let isAgro = localStorage.getItem(STORAGE_KEY_AGRO) === 'true';
 
     let savedSetKey = localStorage.getItem(STORAGE_KEY_SET);
     let currentSetKey = (savedSetKey && HUNTING_SETS[savedSetKey]) ? savedSetKey : Object.keys(HUNTING_SETS)[0];
@@ -211,12 +213,16 @@
     let lastActionTime = 0;
     let lastMapCheck = "";
 
-    // --- STYLIZACJA CSS (FIXED: Usunięto pozycjonowanie globalne) ---
+    // Zmienne do logiki Agro
+    let lastHeroX = -1;
+    let lastHeroY = -1;
+    let lastMoveTime = Date.now();
+
+    // --- STYLIZACJA CSS ---
     const style = document.createElement('style');
     style.innerHTML = `
         .bocik-panel {
             position: fixed;
-            /* Usunięto top/bottom/left/right stąd, by nie psuć innych okien */
             width: 220px;
             background-color: #1a1a1a;
             border: 2px solid #b026ff;
@@ -273,6 +279,7 @@
         input:checked + .slider { background-color: #b026ff; }
         input:checked + .slider:before { transform: translateX(14px); }
         .panel-locked { border-color: #444 !important; box-shadow: none !important; }
+        .opt-group { display:flex; flex-direction:column; gap:5px; }
     `;
     document.head.appendChild(style);
 
@@ -294,12 +301,21 @@
             <select id="setSelectExp" class="bocik-select"></select>
 
             <div class="control-row">
-                <div style="display:flex; align-items:center; gap:5px;">
-                    <label class="switch">
-                        <input type="checkbox" id="loopCheckboxExp">
-                        <span class="slider"></span>
-                    </label>
-                    <span style="font-size:10px; color:#aaa;">Pętla</span>
+                <div class="opt-group">
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <label class="switch">
+                            <input type="checkbox" id="loopCheckboxExp">
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-size:10px; color:#aaa;">Pętla</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <label class="switch">
+                            <input type="checkbox" id="agroCheckboxExp">
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-size:10px; color:#aaa;">Agro</span>
+                    </div>
                 </div>
                 <button id="resetBtnExp" class="bocik-btn btn-reset">↺ Reset</button>
             </div>
@@ -315,6 +331,7 @@
     const statusLabel = document.getElementById('statusLabelExp');
     const setSelect = document.getElementById('setSelectExp');
     const loopCheckbox = document.getElementById('loopCheckboxExp');
+    const agroCheckbox = document.getElementById('agroCheckboxExp');
     const resetBtn = document.getElementById('resetBtnExp');
     const toggleBtn = document.getElementById('toggleBtnExp');
 
@@ -326,10 +343,12 @@
     }
     setSelect.value = currentSetKey;
     loopCheckbox.checked = isLooping;
+    agroCheckbox.checked = isAgro;
 
     // --- OBSŁUGA UI ---
     setSelect.onchange = () => zmienZestaw(setSelect.value, 0);
     loopCheckbox.onchange = () => { isLooping = loopCheckbox.checked; localStorage.setItem(STORAGE_KEY_LOOP, isLooping); };
+    agroCheckbox.onchange = () => { isAgro = agroCheckbox.checked; localStorage.setItem(STORAGE_KEY_AGRO, isAgro); };
 
     resetBtn.onclick = () => {
         console.log('[Bocik] Ręczny reset trasy!');
@@ -387,7 +406,6 @@
                 const pos = JSON.parse(savedPos);
                 element.style.top = pos.top;
                 element.style.left = pos.left;
-                // Resetujemy bottom/right, bo teraz używamy top/left
                 element.style.bottom = 'auto';
                 element.style.right = 'auto';
             } catch(e) {}
@@ -416,14 +434,12 @@
             mouseX = e.clientX; mouseY = e.clientY;
             element.style.top = (element.offsetTop - offsetY) + "px";
             element.style.left = (element.offsetLeft - offsetX) + "px";
-            // Ważne: Usuwamy bottom/right podczas przesuwania, żeby nie blokowało
             element.style.bottom = 'auto';
             element.style.right = 'auto';
         }
         function closeDragElement() {
             document.removeEventListener('mouseup', closeDragElement);
             document.removeEventListener('mousemove', elementDrag);
-            // 2. Zapisz pozycję
             localStorage.setItem(STORAGE_POS_KEY, JSON.stringify({ top: element.style.top, left: element.style.left }));
         }
     })(panel, dragHandle);
@@ -492,6 +508,27 @@
         });
     }
 
+    // --- LOGIKA AGRO (NOWA) ---
+    function checkAgroLogic() {
+        if (!isAgro || !window.hero) return;
+
+        // Jeśli postać się ruszyła, resetujemy timer
+        if (window.hero.x !== lastHeroX || window.hero.y !== lastHeroY) {
+            lastHeroX = window.hero.x;
+            lastHeroY = window.hero.y;
+            lastMoveTime = Date.now();
+        } else {
+            // Jeśli postać stoi
+            // Ważne: Sprawdzamy, czy nie trwa walka (window.g.battle). Jeśli walczymy, nie odświeżamy!
+            const isFighting = (window.g && window.g.battle);
+
+            if (!isFighting && (Date.now() - lastMoveTime > 3000)) {
+                console.log("[Bocik] Agro Trigger: Postać stoi 3s, odświeżam!");
+                location.reload();
+            }
+        }
+    }
+
     // --- STANDARD ---
     function getRandomDelay(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -506,6 +543,7 @@
         if (isRunning && window.map && window.map.name) {
             sprawdzGdzieJestem();
             rysujIdMobow();
+            checkAgroLogic(); // <-- Sprawdzenie Agro
 
             const currentSet = HUNTING_SETS[currentSetKey];
             const currentMapConfig = currentSet.maps[currentMapIndex];
@@ -516,6 +554,8 @@
                 const battleBtn = document.getElementById('autobattleButton');
                 if (battleBtn && isVisible(battleBtn)) {
                     await sleep(300); simulateClick(battleBtn); lastActionTime = Date.now();
+                    // Resetujemy timer agro po walce, żeby nie odświeżyło od razu
+                    lastMoveTime = Date.now();
                 } else {
                     currentMapConfig.waypoints.forEach((wp, i) => { if (!visitedFlags[i] && getDistanceTiles(wp[0], wp[1]) <= WAYPOINT_TOLERANCE) visitedFlags[i] = true; });
                     updateGui();
