@@ -77,7 +77,7 @@
     ].filter(id => id.length > 0);
 
     // --- KONFIGURACJA ---
-    const ATTACK_COOLDOWN = 4500;
+    const ATTACK_COOLDOWN = 3500;
 
     // Wczytanie z pamięci
     let isRunning = localStorage.getItem(STORAGE_RUNNING_KEY) === 'true';
