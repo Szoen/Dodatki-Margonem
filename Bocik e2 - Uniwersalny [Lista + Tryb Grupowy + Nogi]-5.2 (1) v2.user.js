@@ -47,7 +47,7 @@
         '', // Nadzorczyni krasnoludów
         '', // Morthen
         '', // Leśne Widmo
-        '', // Żelazoręki Ohydziarz
+        'npc122272', // Żelazoręki Ohydziarz
         '', // Goplana
         '', // Gnom Figlid
         '', // Centaur Zyfryd
